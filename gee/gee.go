@@ -3,6 +3,7 @@ package gee
 import (
 	"log"
 	"net/http"
+	"strings"
 )
 
 type HandlerFunc func(c *Context)
@@ -40,6 +41,10 @@ func (group *RouterGroup) Group(prefix string) *RouterGroup {
 	return newGroup
 }
 
+func (group *RouterGroup) Use(middlewares ...HandlerFunc) {
+	group.middlewares = append(group.middlewares, middlewares...)
+}
+
 func (group *RouterGroup) addRoute(method string, comp string, handler HandlerFunc) {
 	//key := method + "-" + pattern
 	//// 添加路由响应事件
@@ -63,13 +68,14 @@ func (engine *Engine) Run(addr string) (err error) {
 }
 
 func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	//key := req.Method + "-" + req.URL.Path
-	//// 存在路由则执行handler，否则404
-	//if handler, ok := engine.router[key]; ok {
-	//	handler(w, req)
-	//} else {
-	//	fmt.Fprintf(w, "404 NOT FOUND: %s\n", req.URL)
-	//}
+	var middlewares []HandlerFunc
+	for _, group := range engine.groups {
+		if strings.HasPrefix(req.URL.Path, group.prefix) {
+			middlewares = append(middlewares, group.middlewares...)
+		}
+	}
+
 	c := newContext(w, req)
+	c.handlers = middlewares
 	engine.router.handle(c)
 }
